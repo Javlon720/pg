@@ -9,30 +9,30 @@ app.innerHTML = `
     <header class="topbar">
       <div>
         <p class="eyebrow">Library Management</p>
-        <h1>Backend bilan bog'langan frontend</h1>
+        <h1>Frontend connected to the backend</h1>
       </div>
       <button id="refreshAll" class="btn secondary">Refresh</button>
     </header>
 
-    <p id="status" class="status">Ma'lumotlar yuklanmoqda...</p>
+    <p id="status" class="status">Loading data...</p>
 
     <section class="layout">
       <article class="card">
-        <h2>Mualliflar</h2>
+        <h2>Authors</h2>
         <form id="userForm" class="form-grid">
           <input name="first_name" placeholder="First name" minlength="2" required />
           <input name="last_name" placeholder="Last name" minlength="2" required />
           <input name="email" type="email" placeholder="Email" required />
           <input name="username" placeholder="Username" minlength="3" required />
-          <button class="btn" type="submit">Muallif qo'shish</button>
+          <button class="btn" type="submit">Add author</button>
         </form>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Ism</th>
-                <th>Familiya</th>
+                <th>First name</th>
+                <th>Last name</th>
                 <th>Email</th>
                 <th>Username</th>
               </tr>
@@ -43,22 +43,22 @@ app.innerHTML = `
       </article>
 
       <article class="card">
-        <h2>Kategoriyalar</h2>
+        <h2>Categories</h2>
         <form id="categoryForm" class="inline-form">
-          <input name="name" placeholder="Kategoriya nomi" minlength="2" required />
-          <button class="btn" type="submit">Kategoriya qo'shish</button>
+          <input name="name" placeholder="Category name" minlength="2" required />
+          <button class="btn" type="submit">Add category</button>
         </form>
         <ul id="categoryList" class="chip-list"></ul>
       </article>
 
       <article class="card books-card">
         <div class="books-header">
-          <h2>Kitoblar</h2>
+          <h2>Books</h2>
           <div class="books-controls">
             <label>
               Category:
               <select id="bookCategoryFilter">
-                <option value="">Barchasi</option>
+                <option value="">All</option>
               </select>
             </label>
             <label>
@@ -73,15 +73,15 @@ app.innerHTML = `
         </div>
 
         <form id="bookForm" class="form-grid">
-          <input name="name" placeholder="Kitob nomi" minlength="2" required />
-          <input name="price" type="number" min="0" step="1" placeholder="Narx" required />
+          <input name="name" placeholder="Book title" minlength="2" required />
+          <input name="price" type="number" min="0" step="1" placeholder="Price" required />
           <select name="author_id" id="authorSelect" required>
-            <option value="">Muallif tanlang</option>
+            <option value="">Select an author</option>
           </select>
           <select name="category_id" id="categorySelect" required>
-            <option value="">Kategoriya tanlang</option>
+            <option value="">Select a category</option>
           </select>
-          <button class="btn" type="submit">Kitob qo'shish</button>
+          <button class="btn" type="submit">Add book</button>
         </form>
 
         <div class="table-wrap">
@@ -89,22 +89,20 @@ app.innerHTML = `
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Nomi</th>
-                <th>Narx</th>
-                <th>Muallif ID</th>
-                <th>Kategoriya ID</th>
-                <th>Yaratilgan</th>
+                <th>Title</th>
+                <th>Price</th>
+                <th>Author ID</th>
+                <th>Category ID</th>
+                <th>Created at</th>
               </tr>
             </thead>
             <tbody id="booksBody"></tbody>
           </table>
         </div>
 
-        <div class="pager">
-          <button id="prevPage" class="btn secondary" type="button">Oldingi</button>
-          <div id="pageNumbers" class="page-numbers"></div>
-          <span id="pageLabel">Sahifa: 1 / 1</span>
-          <button id="nextPage" class="btn secondary" type="button">Keyingi</button>
+        <div class="load-more-bar">
+          <span id="pageLabel">Showing: 0 / 0</span>
+          <button id="loadMore" class="btn secondary" type="button">Load more</button>
         </div>
         <p class="query-line">GET <code id="queryText">/books?page=1&count=10</code></p>
       </article>
@@ -118,7 +116,6 @@ const ui = {
   categoryList: document.querySelector('#categoryList'),
   booksBody: document.querySelector('#booksBody'),
   pageLabel: document.querySelector('#pageLabel'),
-  pageNumbers: document.querySelector('#pageNumbers'),
   queryText: document.querySelector('#queryText'),
   userForm: document.querySelector('#userForm'),
   categoryForm: document.querySelector('#categoryForm'),
@@ -127,8 +124,7 @@ const ui = {
   categorySelect: document.querySelector('#categorySelect'),
   bookCategoryFilter: document.querySelector('#bookCategoryFilter'),
   bookCount: document.querySelector('#bookCount'),
-  prevPage: document.querySelector('#prevPage'),
-  nextPage: document.querySelector('#nextPage'),
+  loadMore: document.querySelector('#loadMore'),
   refreshAll: document.querySelector('#refreshAll')
 }
 
@@ -187,7 +183,7 @@ function initializeStateFromUrl() {
 
 function renderUsers() {
   if (state.users.length === 0) {
-    ui.usersBody.innerHTML = '<tr><td colspan="5" class="empty">Mualliflar topilmadi</td></tr>'
+    ui.usersBody.innerHTML = '<tr><td colspan="5" class="empty">No authors found</td></tr>'
     return
   }
 
@@ -208,7 +204,7 @@ function renderUsers() {
 
 function renderCategories() {
   if (state.categories.length === 0) {
-    ui.categoryList.innerHTML = '<li class="empty">Kategoriyalar yo\'q</li>'
+    ui.categoryList.innerHTML = '<li class="empty">No categories yet</li>'
   } else {
     ui.categoryList.innerHTML = state.categories
       .map((category) => `<li class="chip">#${category.id} ${category.name}</li>`)
@@ -219,8 +215,8 @@ function renderCategories() {
     .map((category) => `<option value="${category.id}">${category.name}</option>`)
     .join('')
 
-  ui.categorySelect.innerHTML = '<option value="">Kategoriya tanlang</option>' + options
-  ui.bookCategoryFilter.innerHTML = '<option value="">Barchasi</option>' + options
+  ui.categorySelect.innerHTML = '<option value="">Select a category</option>' + options
+  ui.bookCategoryFilter.innerHTML = '<option value="">All</option>' + options
 
   if (state.categoryFilter) {
     ui.bookCategoryFilter.value = String(state.categoryFilter)
@@ -235,12 +231,12 @@ function renderAuthorsForBook() {
     )
     .join('')
 
-  ui.authorSelect.innerHTML = '<option value="">Muallif tanlang</option>' + options
+  ui.authorSelect.innerHTML = '<option value="">Select an author</option>' + options
 }
 
 function renderBooks() {
   if (state.books.length === 0) {
-    ui.booksBody.innerHTML = '<tr><td colspan="6" class="empty">Kitoblar topilmadi</td></tr>'
+    ui.booksBody.innerHTML = '<tr><td colspan="6" class="empty">No books found</td></tr>'
   } else {
     ui.booksBody.innerHTML = state.books
       .map(
@@ -258,10 +254,9 @@ function renderBooks() {
       .join('')
   }
 
-  ui.pageLabel.textContent = `Sahifa: ${state.page} / ${state.totalPages} (Jami: ${state.total})`
-  ui.prevPage.disabled = !state.hasPrevPage
-  ui.nextPage.disabled = !state.hasNextPage
-  renderPagerNumbers()
+  ui.pageLabel.textContent = `Showing: ${state.books.length} / ${state.total}`
+  ui.loadMore.disabled = !state.hasNextPage
+  ui.loadMore.hidden = state.total === 0 || !state.hasNextPage
   syncQueryInUrl()
 }
 
@@ -281,47 +276,6 @@ function buildBooksParams(page) {
 async function fetchBooksPage(page) {
   const params = buildBooksParams(page)
   return request(`/books?${params.toString()}`)
-}
-
-function getVisiblePages(currentPage, totalPages) {
-  if (totalPages <= 7) {
-    return Array.from({ length: totalPages }, (_, index) => index + 1)
-  }
-
-  const pages = [1]
-  const start = Math.max(2, currentPage - 1)
-  const end = Math.min(totalPages - 1, currentPage + 1)
-
-  if (start > 2) pages.push('...')
-  for (let page = start; page <= end; page += 1) pages.push(page)
-  if (end < totalPages - 1) pages.push('...')
-  pages.push(totalPages)
-
-  return pages
-}
-
-function renderPagerNumbers() {
-  const pageItems = getVisiblePages(state.page, state.totalPages)
-
-  ui.pageNumbers.innerHTML = pageItems
-    .map((item) => {
-      if (item === '...') {
-        return '<span class="page-dots">...</span>'
-      }
-
-      const isActive = item === state.page
-      return `
-        <button
-          class="page-btn ${isActive ? 'active' : ''}"
-          type="button"
-          data-page="${item}"
-          ${isActive ? 'disabled' : ''}
-        >
-          ${item}
-        </button>
-      `
-    })
-    .join('')
 }
 
 function syncQueryInUrl() {
@@ -358,11 +312,27 @@ async function loadBooks() {
   renderBooks()
 }
 
+async function loadMoreBooks() {
+  if (!state.hasNextPage) return
+
+  const nextPage = state.page + 1
+  const result = await fetchBooksPage(nextPage)
+
+  state.page = Number(result.page) || nextPage
+  state.count = Number(result.count) || state.count
+  state.total = Number(result.total) || 0
+  state.totalPages = Number(result.total_pages) || 1
+  state.hasPrevPage = Boolean(result.has_prev_page)
+  state.hasNextPage = Boolean(result.has_next_page)
+  state.books = [...state.books, ...(result.data || [])]
+  renderBooks()
+}
+
 async function refreshAll() {
   try {
-    setStatus('Yuklanmoqda...')
+    setStatus('Loading...')
     await Promise.all([loadUsers(), loadCategories(), loadBooks()])
-    setStatus('Ma\'lumotlar muvaffaqiyatli yangilandi', 'success')
+    setStatus('Data refreshed successfully', 'success')
   } catch (error) {
     setStatus(error.message, 'error')
   }
@@ -380,7 +350,7 @@ ui.userForm.addEventListener('submit', async (event) => {
     })
     ui.userForm.reset()
     await loadUsers()
-    setStatus('Muallif qo\'shildi', 'success')
+    setStatus('Author added', 'success')
   } catch (error) {
     setStatus(error.message, 'error')
   }
@@ -400,7 +370,7 @@ ui.categoryForm.addEventListener('submit', async (event) => {
     await loadCategories()
     state.page = 1
     await loadBooks()
-    setStatus('Kategoriya qo\'shildi', 'success')
+    setStatus('Category added', 'success')
   } catch (error) {
     setStatus(error.message, 'error')
   }
@@ -424,7 +394,7 @@ ui.bookForm.addEventListener('submit', async (event) => {
     })
     ui.bookForm.reset()
     await loadBooks()
-    setStatus('Kitob qo\'shildi', 'success')
+    setStatus('Book added', 'success')
   } catch (error) {
     setStatus(error.message, 'error')
   }
@@ -442,31 +412,12 @@ ui.bookCount.addEventListener('change', async (event) => {
   await loadBooks()
 })
 
-ui.prevPage.addEventListener('click', async () => {
-  if (!state.hasPrevPage) return
-  state.page -= 1
-  await loadBooks()
-})
-
-ui.nextPage.addEventListener('click', async () => {
-  if (!state.hasNextPage) return
-  state.page += 1
-  await loadBooks()
+ui.loadMore.addEventListener('click', async () => {
+  await loadMoreBooks()
 })
 
 ui.refreshAll.addEventListener('click', async () => {
   await refreshAll()
-})
-
-ui.pageNumbers.addEventListener('click', async (event) => {
-  const button = event.target.closest('[data-page]')
-  if (!button) return
-
-  const nextPage = Number(button.dataset.page)
-  if (!nextPage || nextPage === state.page) return
-
-  state.page = nextPage
-  await loadBooks()
 })
 
 initializeStateFromUrl()
