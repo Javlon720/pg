@@ -102,9 +102,11 @@ app.innerHTML = `
 
         <div class="pager">
           <button id="prevPage" class="btn secondary" type="button">Oldingi</button>
-          <span id="pageLabel">Sahifa: 1</span>
+          <div id="pageNumbers" class="page-numbers"></div>
+          <span id="pageLabel">Sahifa: 1 / 1</span>
           <button id="nextPage" class="btn secondary" type="button">Keyingi</button>
         </div>
+        <p class="query-line">GET <code id="queryText">/books?page=1&count=10</code></p>
       </article>
     </section>
   </div>
@@ -116,6 +118,8 @@ const ui = {
   categoryList: document.querySelector('#categoryList'),
   booksBody: document.querySelector('#booksBody'),
   pageLabel: document.querySelector('#pageLabel'),
+  pageNumbers: document.querySelector('#pageNumbers'),
+  queryText: document.querySelector('#queryText'),
   userForm: document.querySelector('#userForm'),
   categoryForm: document.querySelector('#categoryForm'),
   bookForm: document.querySelector('#bookForm'),
@@ -134,7 +138,11 @@ const state = {
   books: [],
   page: 1,
   count: 10,
-  categoryFilter: ''
+  categoryFilter: '',
+  total: 0,
+  totalPages: 1,
+  hasPrevPage: false,
+  hasNextPage: false
 }
 
 async function request(path, options = {}) {
@@ -164,6 +172,17 @@ function formatDate(isoString) {
   const date = new Date(isoString)
   if (Number.isNaN(date.getTime())) return isoString
   return date.toLocaleString('uz-UZ')
+}
+
+function initializeStateFromUrl() {
+  const params = new URLSearchParams(window.location.search)
+  const page = Number(params.get('page'))
+  const count = Number(params.get('count'))
+  const category = params.get('category')
+
+  if (page > 0) state.page = page
+  if (count > 0) state.count = count
+  if (category) state.categoryFilter = category
 }
 
 function renderUsers() {
@@ -239,9 +258,78 @@ function renderBooks() {
       .join('')
   }
 
-  ui.pageLabel.textContent = `Sahifa: ${state.page}`
-  ui.prevPage.disabled = state.page <= 1
-  ui.nextPage.disabled = state.books.length < state.count
+  ui.pageLabel.textContent = `Sahifa: ${state.page} / ${state.totalPages} (Jami: ${state.total})`
+  ui.prevPage.disabled = !state.hasPrevPage
+  ui.nextPage.disabled = !state.hasNextPage
+  renderPagerNumbers()
+  syncQueryInUrl()
+}
+
+function buildBooksParams(page) {
+  const params = new URLSearchParams({
+    page: String(page),
+    count: String(state.count)
+  })
+
+  if (state.categoryFilter) {
+    params.set('category', String(state.categoryFilter))
+  }
+
+  return params
+}
+
+async function fetchBooksPage(page) {
+  const params = buildBooksParams(page)
+  return request(`/books?${params.toString()}`)
+}
+
+function getVisiblePages(currentPage, totalPages) {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1)
+  }
+
+  const pages = [1]
+  const start = Math.max(2, currentPage - 1)
+  const end = Math.min(totalPages - 1, currentPage + 1)
+
+  if (start > 2) pages.push('...')
+  for (let page = start; page <= end; page += 1) pages.push(page)
+  if (end < totalPages - 1) pages.push('...')
+  pages.push(totalPages)
+
+  return pages
+}
+
+function renderPagerNumbers() {
+  const pageItems = getVisiblePages(state.page, state.totalPages)
+
+  ui.pageNumbers.innerHTML = pageItems
+    .map((item) => {
+      if (item === '...') {
+        return '<span class="page-dots">...</span>'
+      }
+
+      const isActive = item === state.page
+      return `
+        <button
+          class="page-btn ${isActive ? 'active' : ''}"
+          type="button"
+          data-page="${item}"
+          ${isActive ? 'disabled' : ''}
+        >
+          ${item}
+        </button>
+      `
+    })
+    .join('')
+}
+
+function syncQueryInUrl() {
+  const params = buildBooksParams(state.page)
+  const queryString = params.toString()
+  const nextUrl = queryString ? `${window.location.pathname}?${queryString}` : window.location.pathname
+  window.history.replaceState({}, '', nextUrl)
+  ui.queryText.textContent = `/books?${queryString}`
 }
 
 async function loadUsers() {
@@ -258,17 +346,14 @@ async function loadCategories() {
 }
 
 async function loadBooks() {
-  const params = new URLSearchParams({
-    page: String(state.page),
-    count: String(state.count)
-  })
+  const result = await fetchBooksPage(state.page)
 
-  if (state.categoryFilter) {
-    params.set('category', String(state.categoryFilter))
-  }
-
-  const result = await request(`/books?${params.toString()}`)
   state.page = Number(result.page) || state.page
+  state.count = Number(result.count) || state.count
+  state.total = Number(result.total) || 0
+  state.totalPages = Number(result.total_pages) || 1
+  state.hasPrevPage = Boolean(result.has_prev_page)
+  state.hasNextPage = Boolean(result.has_next_page)
   state.books = result.data || []
   renderBooks()
 }
@@ -348,7 +433,7 @@ ui.bookForm.addEventListener('submit', async (event) => {
 ui.bookCategoryFilter.addEventListener('change', async (event) => {
   state.categoryFilter = event.target.value
   state.page = 1
-  await refreshAll()
+  await loadBooks()
 })
 
 ui.bookCount.addEventListener('change', async (event) => {
@@ -358,12 +443,13 @@ ui.bookCount.addEventListener('change', async (event) => {
 })
 
 ui.prevPage.addEventListener('click', async () => {
-  if (state.page <= 1) return
+  if (!state.hasPrevPage) return
   state.page -= 1
   await loadBooks()
 })
 
 ui.nextPage.addEventListener('click', async () => {
+  if (!state.hasNextPage) return
   state.page += 1
   await loadBooks()
 })
@@ -371,5 +457,19 @@ ui.nextPage.addEventListener('click', async () => {
 ui.refreshAll.addEventListener('click', async () => {
   await refreshAll()
 })
+
+ui.pageNumbers.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-page]')
+  if (!button) return
+
+  const nextPage = Number(button.dataset.page)
+  if (!nextPage || nextPage === state.page) return
+
+  state.page = nextPage
+  await loadBooks()
+})
+
+initializeStateFromUrl()
+ui.bookCount.value = String(state.count)
 
 await refreshAll()

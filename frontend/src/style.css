@@ -247,11 +247,55 @@ tbody tr:last-child td {
   align-items: center;
   gap: 10px;
   margin-top: 10px;
+  flex-wrap: wrap;
 }
 
 #pageLabel {
   color: var(--muted);
   font-weight: 600;
+}
+
+.page-numbers {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.page-btn {
+  min-width: 34px;
+  height: 34px;
+  border: 1px solid #c9d9ed;
+  background: #fff;
+  color: #29486c;
+  border-radius: 9px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.page-btn.active {
+  background: #1d8a6f;
+  color: #fff;
+  border-color: #1d8a6f;
+}
+
+.page-dots {
+  color: #70839b;
+  font-weight: 700;
+  padding: 0 4px;
+}
+
+.query-line {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.query-line code {
+  background: #f1f5fa;
+  border: 1px solid #d7e1ee;
+  border-radius: 8px;
+  padding: 2px 8px;
+  color: #274462;
 }
 
 @media (max-width: 900px) {
