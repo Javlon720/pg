@@ -1,9 +1,11 @@
 import Fastify from "fastify";
 
-import userRoutes from "./routes/user.route.js";
+import indexRoutes from "./routes/index.route.js";
 
 const app = Fastify({ logger: { level: 'info' } })
 
-await app.register(userRoutes,{prefix:'/users'})
+await app.register(indexRoutes,{prefix:'/data.uz'})
+
+
 
 export default app

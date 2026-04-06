@@ -1,4 +1,4 @@
-import dbUser from '../plugin/db.js'
+
 
 async function userRoutes(fastify) {
     fastify.get('/', async (req, reply) => {

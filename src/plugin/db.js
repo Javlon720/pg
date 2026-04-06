@@ -2,7 +2,7 @@ import { Pool } from "pg";
 
 import { config } from "../config/config.js";
 
-const pool = new Pool({
+const db = new Pool({
 
     user: config.pg_user,
     password: config.pg_password,
@@ -12,4 +12,4 @@ const pool = new Pool({
 
 })
 
-export default pool
+export default db 
